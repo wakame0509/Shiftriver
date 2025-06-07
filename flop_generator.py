@@ -1,50 +1,46 @@
+import eval7
 import random
-import itertools
+from itertools import combinations
 
-ranks = "23456789TJQKA"
-suits = "cdhs"
+def generate_flops_by_type(flop_type):
+    deck = list(eval7.DECK)
+    flops = []
 
-def card_str(card_tuple):
-    return card_tuple[0] + card_tuple[1]
+    for combo in combinations(deck, 3):
+        ranks = [card.rank for card in combo]
+        suits = [card.suit for card in combo]
+        unique_ranks = set(ranks)
+        unique_suits = set(suits)
 
-def generate_all_flops():
-    deck = [r + s for r in ranks for s in suits]
-    flops = list(itertools.combinations(deck, 3))
-    return [list(flop) for flop in flops]
+        if flop_type == "ミドルペア＋2スート":
+            if len(unique_ranks) == 2 and max(ranks) <= 'J' and len(unique_suits) == 2:
+                flops.append(list(combo))
 
-def generate_flops_by_type(flop_type, sample_count):
-    all_flops = generate_all_flops()
-    filtered = []
+        elif flop_type == "ノーヒット＋2スート":
+            if len(unique_ranks) == 3 and len(unique_suits) == 2 and all(r < 'J' for r in ranks):
+                flops.append(list(combo))
 
-    for flop in all_flops:
-        ranks_only = [card[0] for card in flop]
-        suits_only = [card[1] for card in flop]
-        unique_ranks = set(ranks_only)
-        unique_suits = set(suits_only)
+        elif flop_type == "ローカードドライ":
+            if len(unique_ranks) == 3 and len(unique_suits) == 3 and all(r in '5432' for r in ranks):
+                flops.append(list(combo))
 
-        sorted_ranks = sorted([ranks.index(r) for r in ranks_only])
-        is_connected = max(sorted_ranks) - min(sorted_ranks) <= 4
-        is_paired = len(unique_ranks) <= 2
-        is_monotone = len(unique_suits) == 1
-        is_suited = len(unique_suits) == 2
-        is_rainbow = len(unique_suits) == 3
-        high = any(r in 'AKQJT' for r in ranks_only)
-        middle = all(r in '89T' for r in ranks_only)
-        low = all(r in '23456' for r in ranks_only)
+        elif flop_type == "トップヒット＋スート":
+            if len(unique_ranks) == 3 and 'A' in ranks and len(unique_suits) == 2:
+                flops.append(list(combo))
 
-        if flop_type == "High Card / Rainbow" and high and is_rainbow and not is_connected:
-            filtered.append(flop)
-        elif flop_type == "High Card / Suited" and high and is_suited:
-            filtered.append(flop)
-        elif flop_type == "Middle Connected / Rainbow" and is_connected and middle and is_rainbow:
-            filtered.append(flop)
-        elif flop_type == "Middle Connected / Suited" and is_connected and middle and is_suited:
-            filtered.append(flop)
-        elif flop_type == "Low Card Dry" and low and is_rainbow and not is_connected:
-            filtered.append(flop)
-        elif flop_type == "Paired Board" and is_paired:
-            filtered.append(flop)
-        elif flop_type == "Monotone" and is_monotone:
-            filtered.append(flop)
+        elif flop_type == "ガットショット＋スート":
+            int_ranks = [card._rank for card in combo]
+            int_ranks.sort()
+            if len(set(int_ranks)) == 3 and int_ranks[2] - int_ranks[0] == 4 and len(unique_suits) == 2:
+                flops.append(list(combo))
 
-    return random.sample(filtered, min(sample_count, len(filtered)))
+        elif flop_type == "オーバーカード＋スート":
+            if all(r in 'AKQJ' for r in ranks) and len(unique_suits) == 2:
+                flops.append(list(combo))
+
+        elif flop_type == "セミコネクター＋2スート":
+            int_ranks = sorted([card._rank for card in combo])
+            if int_ranks[2] - int_ranks[0] == 2 and len(unique_suits) == 2:
+                flops.append(list(combo))
+
+    return flops
