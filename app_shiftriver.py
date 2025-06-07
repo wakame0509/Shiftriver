@@ -3,11 +3,17 @@ import eval7
 import random
 from itertools import combinations
 from calculate_winrate_detailed_v2 import simulate_shift_river_average
-from hand_list import all_starting_hands
 from flop_generator import generate_flops_by_type
-from opponent_25_combo import opponent_hand_combos  # 展開済み25%レンジ
+from opponent_25_combo import opponent_hand_combos
 
 st.title("ShiftRiver - ターン→リバー 勝率変動分析")
+
+# 自分のハンド定義（169通り）
+all_starting_hands = [
+    f"{r1}{r2}s" if i < j else f"{r1}{r2}o" if i > j else f"{r1}{r2}"
+    for i, r1 in enumerate("AKQJT98765432")
+    for j, r2 in enumerate("AKQJT98765432")
+]
 
 hand_str = st.selectbox("自分のハンドを選択", all_starting_hands)
 
@@ -40,7 +46,7 @@ if st.button("ShiftRiverを実行"):
             for j in range(i + 1, len(suits)):
                 combos.append([eval7.Card(ranks[0] + suits[i]), eval7.Card(ranks[0] + suits[j])])
 
-    hero_hand = random.choice(combos)  # 代表として1組
+    hero_hand = random.choice(combos)
 
     # フロップ抽出
     flops = generate_flops_by_type(flop_type)
