@@ -1,50 +1,69 @@
 import streamlit as st
-from calculate_winrate_detailed_v2 import simulate_shift_river
+import eval7
+import random
+from itertools import combinations
+from calculate_winrate_detailed_v2 import simulate_shift_river_average
+from hand_list import all_starting_hands
 from flop_generator import generate_flops_by_type
-import pandas as pd
+from opponent_25_combo import opponent_hand_combos  # 展開済み25%レンジ
 
-st.title("ShiftRiver（リバーの勝率変動分析）")
+st.title("ShiftRiver - ターン→リバー 勝率変動分析")
 
-# 169通りのスターティングハンド（自分用）
-all_starting_hands = [
-    f"{r1}{r2}s" if i < j else f"{r1}{r2}o" if i > j else f"{r1}{r2}"
-    for i, r1 in enumerate("AKQJT98765432")
-    for j, r2 in enumerate("AKQJT98765432")
-]
+hand_str = st.selectbox("自分のハンドを選択", all_starting_hands)
 
-# 自分のハンド選択
-hand = st.selectbox("自分のハンドを選択", all_starting_hands)
+flop_type = st.selectbox("フロップタイプを選択", [
+    "ミドルペア＋2スート", "ノーヒット＋2スート", "ローカードドライ",
+    "トップヒット＋スート", "ガットショット＋スート",
+    "オーバーカード＋スート", "セミコネクター＋2スート"
+])
 
-# フロップタイプ選択
-flop_type = st.selectbox(
-    "フロップタイプを選択",
-    [
-        "High Card Dry",
-        "High Card Wet",
-        "Middle Connected",
-        "Paired Board",
-        "Monotone",
-        "Two Tone",
-        "Low Card Dry",
-    ]
-)
+num_flops = st.selectbox("使用するフロップの数", [10, 20, 30])
 
-# フロップの枚数選択（10枚 / 20枚 / 30枚）
-num_flops = st.selectbox("使用するフロップの数を選択", [10, 20, 30])
-
-# 実行ボタン
 if st.button("ShiftRiverを実行"):
-    st.write("計算中です。少々お待ちください...")
+    # 自分のハンド展開
+    ranks = hand_str[:2]
+    suited = hand_str.endswith("s")
+    offsuit = hand_str.endswith("o")
+    combos = []
 
-    # 指定されたタイプに基づいてランダムなフロップを生成
-    selected_flops = generate_flops_by_type(flop_type, num_flops)
+    suits = ['h', 'd', 'c', 's']
+    if suited:
+        for s in suits:
+            combos.append([eval7.Card(ranks[0] + s), eval7.Card(ranks[1] + s)])
+    elif offsuit:
+        for s1 in suits:
+            for s2 in suits:
+                if s1 != s2:
+                    combos.append([eval7.Card(ranks[0] + s1), eval7.Card(ranks[1] + s2)])
+    else:  # ペア
+        for i in range(len(suits)):
+            for j in range(i + 1, len(suits)):
+                combos.append([eval7.Card(ranks[0] + suits[i]), eval7.Card(ranks[0] + suits[j])])
 
-    # シミュレーション実行
-    result_df = simulate_shift_river(hand, selected_flops)
+    hero_hand = random.choice(combos)  # 代表として1組
 
-    # 結果表示
-    st.dataframe(result_df)
+    # フロップ抽出
+    flops = generate_flops_by_type(flop_type)
+    selected_flops = random.sample(flops, min(num_flops, len(flops)))
 
-    # CSV保存リンク
-    csv = result_df.to_csv(index=False).encode('utf-8')
-    st.download_button("CSVとして保存", csv, f"shift_river_{hand}_{flop_type}.csv", "text/csv")
+    # 各フロップに対してターンを展開
+    flop_turn_combos = []
+    for flop in selected_flops:
+        used = set(flop + hero_hand)
+        deck = [card for card in eval7.DECK if card not in used]
+        for turn in deck:
+            if turn not in flop:
+                flop_turn_combos.append(flop + [turn])
+
+    with st.spinner("ShiftRiver 計算中..."):
+        results = simulate_shift_river_average(hero_hand, flop_turn_combos, [
+            [eval7.Card(c1), eval7.Card(c2)] for c1, c2 in opponent_hand_combos
+        ])
+
+    for result in results:
+        st.write(f"### フロップ＋ターン: {' '.join(result['base_board'])}")
+        st.write(f"平均勝率: {result['avg_winrate']}")
+        st.write("勝率上昇トップ10:")
+        st.table(result['top10'])
+        st.write("勝率下降ワースト10:")
+        st.table(result['worst10'])
